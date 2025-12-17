@@ -3,34 +3,36 @@ import { GoogleSpreadsheet } from "google-spreadsheet";
 
 const { Pool } = pg;
 
-// 1. KONEKSI POSTGRESQL
+// 1. POSTGRESQL
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false },
 });
 
-// 2. AUTH GOOGLE
-const creds = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT);
-const doc = new GoogleSpreadsheet(process.env.SHEET_ID);
+// 2. GOOGLE CREDENTIALS
+const rawCreds = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT);
+
+const creds = {
+  client_email: rawCreds.client_email,
+  private_key: rawCreds.private_key.replace(/\\n/g, "\n"),
+};
+
+// 3. INIT SPREADSHEET (INI KUNCI v4)
+const doc = new GoogleSpreadsheet(process.env.SHEET_ID, creds);
 
 async function sync() {
   console.log("START SYNC");
 
-  await doc.useServiceAccountAuth({
-    client_email: creds.client_email,
-    private_key: creds.private_key.replace(/\\n/g, "\n"),
-  });
-
   await doc.loadInfo();
-  console.log("SPREADSHEET LOADED:", doc.title);
+  console.log("SPREADSHEET:", doc.title);
 
-  // 3. TARGET SHEET PASTI
+  // TARGET SHEET
   let sheet = doc.sheetsByTitle["PostgreSQL"];
   if (!sheet) {
     sheet = await doc.addSheet({ title: "PostgreSQL" });
   }
 
-  // 4. QUERY SESUAI STRUKTUR ASLI
+  // QUERY SESUAI STRUKTUR DB ANDA
   const query = `
     SELECT
       nik_driver,
@@ -51,7 +53,7 @@ async function sync() {
     return;
   }
 
-  // 5. TULIS KE SHEET
+  // WRITE TO SHEET
   await sheet.clear();
   await sheet.setHeaderRow([
     "nik_driver",
@@ -61,7 +63,7 @@ async function sync() {
   ]);
   await sheet.addRows(result.rows);
 
-  console.log("DATA WRITTEN TO SHEET");
+  console.log("DATA WRITTEN SUCCESSFULLY");
 }
 
 sync().catch((err) => {
