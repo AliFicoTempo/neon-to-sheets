@@ -28,7 +28,6 @@ async function sync() {
   const { rows } = await pool.query(`
     SELECT *
     FROM shipment
-    ORDER BY tanggal DESC
   `);
 
   console.log("TOTAL ROWS:", rows.length);
