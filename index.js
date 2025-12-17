@@ -1,24 +1,32 @@
 import pg from "pg";
 import { GoogleSpreadsheet } from "google-spreadsheet";
+import { JWT } from "google-auth-library";
 
 const { Pool } = pg;
 
-// 1. POSTGRESQL
+/* ===============================
+   POSTGRESQL CONNECTION
+================================ */
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false },
 });
 
-// 2. GOOGLE CREDENTIALS
+/* ===============================
+   GOOGLE AUTH (INI KUNCI)
+================================ */
 const rawCreds = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT);
 
-const creds = {
-  client_email: rawCreds.client_email,
-  private_key: rawCreds.private_key.replace(/\\n/g, "\n"),
-};
+const auth = new JWT({
+  email: rawCreds.client_email,
+  key: rawCreds.private_key.replace(/\\n/g, "\n"),
+  scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+});
 
-// 3. INIT SPREADSHEET (INI KUNCI v4)
-const doc = new GoogleSpreadsheet(process.env.SHEET_ID, creds);
+/* ===============================
+   SPREADSHEET INIT
+================================ */
+const doc = new GoogleSpreadsheet(process.env.SHEET_ID, auth);
 
 async function sync() {
   console.log("START SYNC");
@@ -26,24 +34,21 @@ async function sync() {
   await doc.loadInfo();
   console.log("SPREADSHEET:", doc.title);
 
-  // TARGET SHEET
+  /* TARGET SHEET */
   let sheet = doc.sheetsByTitle["PostgreSQL"];
   if (!sheet) {
     sheet = await doc.addSheet({ title: "PostgreSQL" });
   }
 
-  // QUERY SESUAI STRUKTUR DB ANDA
-  const query = `
+  /* QUERY SESUAI DB ANDA */
+  const result = await pool.query(`
     SELECT
       nik_driver,
       nama_driver,
       tanggal,
       shipment_code
     FROM shipment
-    LIMIT 50
-  `;
-
-  const result = await pool.query(query);
+  `);
 
   console.log("ROW COUNT:", result.rows.length);
   console.log("FIRST ROW:", result.rows[0]);
@@ -53,13 +58,13 @@ async function sync() {
     return;
   }
 
-  // WRITE TO SHEET
+  /* WRITE DATA */
   await sheet.clear();
   await sheet.setHeaderRow([
     "nik_driver",
     "nama_driver",
     "tanggal",
-    "shipment_code"
+    "shipment_code",
   ]);
   await sheet.addRows(result.rows);
 
