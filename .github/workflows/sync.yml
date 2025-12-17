@@ -1,0 +1,25 @@
+name: Neon to Google Sheets Sync
+
+on:
+  schedule:
+    - cron: "*/15 * * * *" # tiap 15 menit
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - run: npm install
+
+      - run: node index.js
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          SHEET_ID: ${{ secrets.SHEET_ID }}
+          GOOGLE_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_SERVICE_ACCOUNT }}

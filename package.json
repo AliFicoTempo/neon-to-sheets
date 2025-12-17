@@ -1,0 +1,8 @@
+{
+  "name": "neon-to-sheets",
+  "type": "module",
+  "dependencies": {
+    "pg": "^8.11.3",
+    "google-spreadsheet": "^4.1.1"
+  }
+}
