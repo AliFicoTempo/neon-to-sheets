@@ -18,13 +18,20 @@ async function sync() {
   });
 
   await doc.loadInfo();
-  const sheet = doc.sheetsByIndex[0];
+
+  // TARGET SHEET TEPAT
+  let sheet = doc.sheetsByTitle["PostgreSQL"];
+  if (!sheet) {
+    sheet = await doc.addSheet({ title: "PostgreSQL" });
+  }
 
   const { rows } = await pool.query(`
     SELECT *
     FROM shipment
-    ORDER BY tanggal ASC
+    ORDER BY created_at DESC
   `);
+
+  console.log("TOTAL ROWS:", rows.length);
 
   if (!rows.length) return;
 
@@ -32,7 +39,7 @@ async function sync() {
   await sheet.setHeaderRow(Object.keys(rows[0]));
   await sheet.addRows(rows);
 
-  console.log("SYNC OK");
+  console.log("SYNC SUCCESS");
 }
 
 sync().catch(console.error);
