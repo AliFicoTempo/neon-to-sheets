@@ -5,22 +5,25 @@ const { Pool } = pg;
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }
+  ssl: { rejectUnauthorized: false },
 });
 
-const doc = new GoogleSpreadsheet(
-  process.env.SHEET_ID,
-  JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT)
-);
+const creds = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT);
+const doc = new GoogleSpreadsheet(process.env.SHEET_ID);
 
 async function sync() {
+  await doc.useServiceAccountAuth({
+    client_email: creds.client_email,
+    private_key: creds.private_key.replace(/\\n/g, "\n"),
+  });
+
   await doc.loadInfo();
   const sheet = doc.sheetsByIndex[0];
 
   const { rows } = await pool.query(`
     SELECT *
-    FROM shipments
-    ORDER BY created_at DESC
+    FROM shipment
+    ORDER BY tanggal ASC
   `);
 
   if (!rows.length) return;
@@ -32,4 +35,4 @@ async function sync() {
   console.log("SYNC OK");
 }
 
-sync();
+sync().catch(console.error);
