@@ -13,7 +13,7 @@ const pool = new Pool({
 });
 
 /* ===============================
-   GOOGLE AUTH (INI KUNCI)
+   GOOGLE AUTH (JWT)
 ================================ */
 const rawCreds = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT);
 
@@ -28,19 +28,34 @@ const auth = new JWT({
 ================================ */
 const doc = new GoogleSpreadsheet(process.env.SHEET_ID, auth);
 
+/* ===============================
+   DATE FORMATTER
+================================ */
+function formatDate(dateValue) {
+  if (!dateValue) return "";
+
+  const d = new Date(dateValue);
+  const day = String(d.getDate()).padStart(2, "0");
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const year = d.getFullYear();
+
+  return `${day}/${month}/${year}`;
+}
+
+/* ===============================
+   MAIN SYNC
+================================ */
 async function sync() {
   console.log("START SYNC");
 
   await doc.loadInfo();
   console.log("SPREADSHEET:", doc.title);
 
-  /* TARGET SHEET */
   let sheet = doc.sheetsByTitle["PostgreSQL"];
   if (!sheet) {
     sheet = await doc.addSheet({ title: "PostgreSQL" });
   }
 
-  /* QUERY SESUAI DB ANDA */
   const result = await pool.query(`
     SELECT
       nik_driver,
@@ -48,17 +63,23 @@ async function sync() {
       tanggal,
       shipment_code
     FROM shipment
+    ORDER BY tanggal ASC
   `);
 
   console.log("ROW COUNT:", result.rows.length);
-  console.log("FIRST ROW:", result.rows[0]);
 
   if (result.rows.length === 0) {
     console.log("NO DATA FROM DATABASE");
     return;
   }
 
-  /* WRITE DATA */
+  const rows = result.rows.map((row) => ({
+    nik_driver: row.nik_driver,
+    nama_driver: row.nama_driver,
+    tanggal: formatDate(row.tanggal),
+    shipment_code: row.shipment_code,
+  }));
+
   await sheet.clear();
   await sheet.setHeaderRow([
     "nik_driver",
@@ -66,11 +87,17 @@ async function sync() {
     "tanggal",
     "shipment_code",
   ]);
-  await sheet.addRows(result.rows);
+  await sheet.addRows(rows);
 
   console.log("DATA WRITTEN SUCCESSFULLY");
 }
 
-sync().catch((err) => {
-  console.error("SYNC FAILED:", err);
-});
+/* ===============================
+   EXECUTE
+================================ */
+sync()
+  .then(() => process.exit(0))
+  .catch((err) => {
+    console.error("SYNC FAILED:", err);
+    process.exit(1);
+  });
